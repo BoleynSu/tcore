@@ -5,7 +5,10 @@
 #include <cassert>
 #include <iostream>
 #include <iterator>
+#include <limits>
+#include <map>
 #include <queue>
+#include <set>
 #include <utility>
 #include <vector>
 
@@ -14,26 +17,18 @@ using namespace std;
 typedef int64_t i64;
 
 struct graph {
+  // input parameters
+  i64 theta, k, tau;
   // input data
   i64 V, E;
   vector<vector<pair<pair<i64, i64>, pair<i64, i64>>>> neighbors;
-  // input parameters
-  i64 theta, k, tau;
   void read(istream& cin) {
     cin >> theta >> k >> tau;
     cin >> V >> E;
     neighbors.resize(V);
-
-    vector<pair<int, pair<int, int>>> lst;
-    for (i64 i = 0; i < E; ++i) {
+    for (i64 i = 0, last_t = numeric_limits<i64>::min(); i < E; ++i) {
       i64 u, v, t;
       cin >> u >> v >> t;
-      lst.push_back(make_pair(t, make_pair(u, v)));
-    }
-    sort(lst.begin(), lst.end());
-
-    for (i64 i = 0, last_t = numeric_limits<i64>::min(); i < E; ++i) {
-      i64 u = lst[i].second.first, v = lst[i].second.second, t = lst[i].first;
       assert(u != v);
       assert(last_t <= t);
       i64 bu = neighbors[u].size(), bv = neighbors[v].size();
@@ -44,14 +39,19 @@ struct graph {
   }
   // NOTE: O(V+theta E)
   void theta_stable_k_degree_with_stability_no_less_than_tau() {
-    // NOTE: smart trick
+    // NOTE: some magic
     vector<i64> last(V);
+    vector<vector<bool>> ignore(V);
     for (i64 u = 0; u < V; u++) {
+      ignore[u].resize(neighbors[u].size());
       for (i64 i = 0; i < (i64)neighbors[u].size(); i++) {
         auto& n = neighbors[u][i];
         i64 j = last[n.first.first];
         if (j < i && neighbors[u][j].first.first == n.first.first) {
-          neighbors[u][j].second.second = n.second.first;
+          if (neighbors[u][j].second.second > n.second.first) {
+            neighbors[u][j].second.second = n.second.first;
+            ignore[u][i] = true;
+          }
         }
         last[n.first.first] = i;
       }
@@ -77,7 +77,10 @@ struct graph {
                 ds[u].st.emplace_back(neighbors[u][i].second.first, i);
                 i++;
               } else {
-                ds[u].st.emplace_back(neighbors[u][j].second.second, -1);
+                if (neighbors[u][j].second.second ==
+                    neighbors[u][j].second.first + theta) {
+                  ds[u].st.emplace_back(neighbors[u][j].second.second, -1);
+                }
                 j++;
               }
             } else {
@@ -85,7 +88,10 @@ struct graph {
               i++;
             }
           } else {
-            ds[u].st.emplace_back(neighbors[u][j].second.second, -1);
+            if (neighbors[u][j].second.second ==
+                neighbors[u][j].second.first + theta) {
+              ds[u].st.emplace_back(neighbors[u][j].second.second, -1);
+            }
             j++;
           }
         }
@@ -96,7 +102,9 @@ struct graph {
               pre--;
             } else {
               neighbors[u][ds[u].st[i].second].second.first = ns - 1;
-              pre++;
+              if (!ignore[u][ds[u].st[i].second]) {
+                pre++;
+              }
             }
             ds[u].st[ns - 1].second = pre;
           } else {
@@ -105,7 +113,9 @@ struct graph {
               pre--;
             } else {
               neighbors[u][ds[u].st[i].second].second.first = ns - 1;
-              pre++;
+              if (!ignore[u][ds[u].st[i].second]) {
+                pre++;
+              }
             }
             ds[u].st[ns - 1].first = ds[u].st[i].first;
             ds[u].st[ns - 1].second = pre;
@@ -118,16 +128,17 @@ struct graph {
           }
         }
       }
-      //      cout << u << ":" << ds[u].val << endl;
+      //            cout << u << ":" << ds[u].val << endl;
       //            for (i64 i = 0; i < (i64)ds[u].st.size(); i++) {
       //              cout << ds[u].st[i].first << "," << ds[u].st[i].second <<
       //              endl;
       //            }
       if (ds[u].val < tau) {
         q.emplace(u);
-        //                        cout << "push " << u << endl;
+        //        cout << "push " << u << endl;
       }
     }
+    cout << q.size() << endl;
     while (!q.empty()) {
       i64 u = q.front();
       //                  cout << "pop " << u << endl;
@@ -138,17 +149,13 @@ struct graph {
         while (ds[v].st[it].first < n.second.second) {
           ds[v].st[it].second--;
           if (ds[v].st[it].second + 1 >= k && ds[v].st[it].second < k) {
-            i64 delta = 0;
-            delta -= ds[v].st[it].first;
-            it++;
-            delta += ds[v].st[it].first;
+            i64 delta = ds[v].st[it + 1].first - ds[v].st[it].first;
             ds[v].val -= delta;
             if (ds[v].val + delta >= tau && ds[v].val < tau) {
               q.emplace(v);
             }
-          } else {
-            it++;
           }
+          it++;
         }
       }
       q.pop();
@@ -157,6 +164,25 @@ struct graph {
     for (i64 u = 0; u < V; u++) {
       if (ds[u].val < tau) {
         // NOTE: not a candidate
+      } else {
+        cout << u << endl;
+        map<int, set<int>> st;
+        for (auto& n : neighbors[u]) {
+          i64 v = n.first.first;
+          if (ds[v].val < tau) continue;
+          i64 it = neighbors[v][n.first.second].second.first;
+          i64 b = ds[v].st[it].first;
+          for (int i = 0; i < theta; i++) {
+            st[b + i].insert(v);
+          }
+        }
+        int ans = 0;
+        for (auto t : st) {
+          if (t.second.size() >= k) {
+            ans++;
+          }
+        }
+        cout << "ans=" << ans << "," << ds[u].val << endl;
       }
       //      cout << u << " " << ds[u].val << endl;
     }
