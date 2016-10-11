@@ -2,6 +2,7 @@
 
 #include <sys/types.h>
 #include <algorithm>
+#include <cassert>
 #include <iostream>
 #include <iterator>
 #include <queue>
@@ -15,26 +16,46 @@ typedef int64_t i64;
 struct graph {
   // input data
   i64 V, E;
-  vector<vector<pair<i64, i64>>> neighbors;
+  vector<vector<pair<pair<i64, i64>, pair<i64, i64>>>> neighbors;
   // input parameters
   i64 theta, k, tau;
-  // shared output data
-  vector<i64> filtered;
   void read(istream& cin) {
+    cin >> theta >> k >> tau;
     cin >> V >> E;
     neighbors.resize(V);
+
+    vector<pair<int, pair<int, int>>> lst;
     for (i64 i = 0; i < E; ++i) {
       i64 u, v, t;
       cin >> u >> v >> t;
-      neighbors[u].emplace_back(v, t);
-      neighbors[v].emplace_back(u, t);
+      lst.push_back(make_pair(t, make_pair(u, v)));
     }
-    cin >> theta >> k >> tau;
-    filtered.resize(V);
+    sort(lst.begin(), lst.end());
+
+    for (i64 i = 0, last_t = numeric_limits<i64>::min(); i < E; ++i) {
+      i64 u = lst[i].second.first, v = lst[i].second.second, t = lst[i].first;
+      assert(u != v);
+      assert(last_t <= t);
+      i64 bu = neighbors[u].size(), bv = neighbors[v].size();
+      neighbors[u].emplace_back(make_pair(v, bv), make_pair(t, t + theta));
+      neighbors[v].emplace_back(make_pair(u, bu), make_pair(t, t + theta));
+      last_t = t;
+    }
   }
-  // NOTE: O(V+ElogE+theta E)
-  // TODO: improve it to O(V+theta E) if the input is ordered
+  // NOTE: O(V+theta E)
   void theta_stable_k_degree_with_stability_no_less_than_tau() {
+    // NOTE: smart trick
+    vector<i64> last(V);
+    for (i64 u = 0; u < V; u++) {
+      for (i64 i = 0; i < (i64)neighbors[u].size(); i++) {
+        auto& n = neighbors[u][i];
+        i64 j = last[n.first.first];
+        if (j < i && neighbors[u][j].first.first == n.first.first) {
+          neighbors[u][j].second.second = n.second.first;
+        }
+        last[n.first.first] = i;
+      }
+    }
     struct ds {
       i64 val;
       vector<pair<i64, i64>> st;
@@ -43,55 +64,84 @@ struct graph {
     vector<ds> ds(V);
     queue<i64> q;
     for (i64 u = 0; u < V; u++) {
-      for (auto& n : neighbors[u]) {
-        ds[u].st.emplace_back(n.second, 1);
+      if (neighbors[u].size() == 0) {
+        ds[u].val = 0;
+      } else {
         // TODO: check with a threshold
-        ds[u].st.emplace_back(n.second + theta, -1);
-      }
-      // NOTE: O(ElogE)
-      sort(ds[u].st.begin(), ds[u].st.end());
-      i64 ns = 1;
-      for (i64 i = 1; i < (i64)ds[u].st.size(); i++) {
-        if (ds[u].st[ns - 1].first == ds[u].st[i].first) {
-          ds[u].st[ns - 1].second += ds[u].st[i].second;
-        } else {
-          ds[u].st[ns] = ds[u].st[i];
-          ds[u].st[ns].second += ds[u].st[ns - 1].second;
-          ns++;
+        for (i64 i = 0, j = 0;
+             i < (i64)neighbors[u].size() || j < (i64)neighbors[u].size();) {
+          if (i < (i64)neighbors[u].size()) {
+            if (j < (i64)neighbors[u].size()) {
+              if (neighbors[u][i].second.first <
+                  neighbors[u][j].second.second) {
+                ds[u].st.emplace_back(neighbors[u][i].second.first, i);
+                i++;
+              } else {
+                ds[u].st.emplace_back(neighbors[u][j].second.second, -1);
+                j++;
+              }
+            } else {
+              ds[u].st.emplace_back(neighbors[u][i].second.first, i);
+              i++;
+            }
+          } else {
+            ds[u].st.emplace_back(neighbors[u][j].second.second, -1);
+            j++;
+          }
         }
-      }
-      ds[u].st.resize(ns);
-      for (i64 i = 0; i < ns - 1; i++) {
-        if (ds[u].st[i].second >= k) {
-          ds[u].val += ds[u].st[i + 1].first - ds[u].st[i].first;
+        i64 ns = 0;
+        for (i64 i = 0, pre = 0; i < (i64)ds[u].st.size(); i++) {
+          if (ns > 0 && ds[u].st[ns - 1].first == ds[u].st[i].first) {
+            if (ds[u].st[i].second == -1) {
+              pre--;
+            } else {
+              neighbors[u][ds[u].st[i].second].second.first = ns - 1;
+              pre++;
+            }
+            ds[u].st[ns - 1].second = pre;
+          } else {
+            ns++;
+            if (ds[u].st[i].second == -1) {
+              pre--;
+            } else {
+              neighbors[u][ds[u].st[i].second].second.first = ns - 1;
+              pre++;
+            }
+            ds[u].st[ns - 1].first = ds[u].st[i].first;
+            ds[u].st[ns - 1].second = pre;
+          }
+        }
+        ds[u].st.resize(ns);
+        for (i64 i = 0; i < ns - 1; i++) {
+          if (ds[u].st[i].second >= k) {
+            ds[u].val += ds[u].st[i + 1].first - ds[u].st[i].first;
+          }
         }
       }
       //      cout << u << ":" << ds[u].val << endl;
-      //      for (i64 i = 0; i < ns; i++) {
-      //        cout << ds[u].st[i].first << "," << ds[u].st[i].second << endl;
-      //      }
+      //            for (i64 i = 0; i < (i64)ds[u].st.size(); i++) {
+      //              cout << ds[u].st[i].first << "," << ds[u].st[i].second <<
+      //              endl;
+      //            }
       if (ds[u].val < tau) {
         q.emplace(u);
-        //        cout << "push " << u << endl;
+        //                        cout << "push " << u << endl;
       }
     }
     while (!q.empty()) {
       i64 u = q.front();
-      //      cout << "pop " << u << endl;
+      //                  cout << "pop " << u << endl;
       for (auto& n : neighbors[u]) {
-        i64 v = n.first;
-        i64 t = n.second;
-        // NOTE: O(logE)
-        auto it =
-            lower_bound(ds[v].st.begin(), ds[v].st.end(), make_pair(t, (i64)0));
+        i64 v = n.first.first;
+        i64 it = neighbors[v][n.first.second].second.first;
         // NOTE: O(theta)
-        while (it->first < t + theta) {
-          it->second--;
-          if (it->second + 1 >= k && it->second < k) {
+        while (ds[v].st[it].first < n.second.second) {
+          ds[v].st[it].second--;
+          if (ds[v].st[it].second + 1 >= k && ds[v].st[it].second < k) {
             i64 delta = 0;
-            delta -= it->first;
+            delta -= ds[v].st[it].first;
             it++;
-            delta += it->first;
+            delta += ds[v].st[it].first;
             ds[v].val -= delta;
             if (ds[v].val + delta >= tau && ds[v].val < tau) {
               q.emplace(v);
@@ -103,11 +153,12 @@ struct graph {
       }
       q.pop();
     }
+
     for (i64 u = 0; u < V; u++) {
       if (ds[u].val < tau) {
-        filtered[u] = true;
+        // NOTE: not a candidate
       }
-      //      cout << ds[u].val << endl;
+      //      cout << u << " " << ds[u].val << endl;
     }
   }
   void k_core() {
@@ -115,7 +166,7 @@ struct graph {
     vector<i64> deg(V), cnt(V), pos(V);
     for (i64 u = 0; u < V; u++) {
       for (auto& n : neighbors[u]) {
-        nn[u].emplace_back(n.first);
+        nn[u].emplace_back(n.first.first);
       }
       sort(nn[u].begin(), nn[u].end());
       nn[u].erase(unique(nn[u].begin(), nn[u].end()), nn[u].end());
@@ -148,23 +199,18 @@ struct graph {
         }
       }
       if (deg[u] < k) {
-        filtered[u] = true;
+        // NOTE: not a candidate
       }
-      //      cout << u << " " << deg[u] << endl;
+      //            cout << u << " " << deg[u] << endl;
     }
   }
+  void branch_and_bound() {}
 } G;
 
 int main() {
   G.read(cin);
   G.theta_stable_k_degree_with_stability_no_less_than_tau();
   G.k_core();
-  // TODO: theta_stable_k_degree_with_stability_no_less_than_tau and k_core can
-  // help each other
-  for (i64 u = 0; u < G.V; u++) {
-    if (!G.filtered[u]) {
-      cout << u << endl;
-    }
-  }
+  G.branch_and_bound();
   return 0;
 }
