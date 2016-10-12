@@ -3,6 +3,7 @@
 #include <sys/types.h>
 #include <algorithm>
 #include <cassert>
+#include <functional>
 #include <iostream>
 #include <iterator>
 #include <limits>
@@ -17,12 +18,20 @@ using namespace std;
 typedef int64_t i64;
 
 struct graph {
+  struct ds_t {
+    i64 val;
+    vector<pair<i64, i64>> st;
+    ds_t() : val(), st() {}
+  };
   // input parameters
   i64 theta, k, tau;
   // input data
   i64 V, E;
   vector<vector<pair<pair<i64, i64>, pair<i64, i64>>>> neighbors;
-  void read(istream& cin) {
+  // output data
+  vector<ds_t> ds;
+  vector<vector<i64>> ans;
+  graph(istream& cin) : theta(), k(), tau(), V(), E(), neighbors(), ans() {
     cin >> theta >> k >> tau;
     cin >> V >> E;
     neighbors.resize(V);
@@ -38,7 +47,7 @@ struct graph {
     }
   }
   // NOTE: O(V+theta E)
-  void theta_stable_k_degree_with_stability_no_less_than_tau() {
+  void theta_stable_k_degree_nodes_with_stability_no_less_than_tau() {
     // NOTE: some magic
     vector<i64> last(V);
     vector<vector<bool>> ignore(V);
@@ -56,12 +65,6 @@ struct graph {
         last[n.first.first] = i;
       }
     }
-    struct ds {
-      i64 val;
-      vector<pair<i64, i64>> st;
-      ds() : val(), st() {}
-    };
-    vector<ds> ds(V);
     queue<i64> q;
     for (i64 u = 0; u < V; u++) {
       if (neighbors[u].size() == 0) {
@@ -138,7 +141,6 @@ struct graph {
         //        cout << "push " << u << endl;
       }
     }
-    cout << q.size() << endl;
     while (!q.empty()) {
       i64 u = q.front();
       //                  cout << "pop " << u << endl;
@@ -160,83 +162,83 @@ struct graph {
       }
       q.pop();
     }
-
-    for (i64 u = 0; u < V; u++) {
-      if (ds[u].val < tau) {
-        // NOTE: not a candidate
-      } else {
-        cout << u << endl;
-        map<int, set<int>> st;
-        for (auto& n : neighbors[u]) {
-          i64 v = n.first.first;
-          if (ds[v].val < tau) continue;
+  }
+  i64 stability(const vector<i64>& comp, vector<ds_t>& ds, vector<bool>& in) {
+    vector<map<i64, set<i64>>> st(V);
+    for (i64 i = 0; i < comp.size(); i++) {
+      i64 u = comp[i];
+      for (auto& n : neighbors[u]) {
+        i64 v = n.first.first;
+        if (in[v]) {
           i64 it = neighbors[v][n.first.second].second.first;
           i64 b = ds[v].st[it].first;
-          for (int i = 0; i < theta; i++) {
-            st[b + i].insert(v);
+          for (i64 i = 0; i < theta; i++) {
+            st[u][b + i].insert(v);
           }
         }
-        int ans = 0;
-        for (auto t : st) {
-          if (t.second.size() >= k) {
-            ans++;
+      }
+    }
+    i64 cnt = 0;
+    for (i64 t = 1921; t <= 2020; t++) {
+      i64 delta = 1;
+      for (i64 u : comp) {
+        if (st[u][t].size() < k) {
+          delta = 0;
+        }
+      }
+      cnt += delta;
+    }
+    return cnt;
+  }
+  void branch_and_bound(const vector<i64>& comp, vector<ds_t>& ds,
+                        vector<bool>& in, vector<bool>& selected) {
+    if (ans.back().size() > comp.size()) {
+      return;
+    }
+    if (stability(comp, ds, in) >= tau) {
+      ans.emplace_back(comp);
+    } else {
+      vector<i64> comp1, comp2;
+    }
+  }
+  void solve() {
+    ds.resize(V);
+    ans.emplace_back();
+    theta_stable_k_degree_nodes_with_stability_no_less_than_tau();
+    vector<bool> visited(V), selected(V);
+    for (i64 u = 0; u < V; u++) {
+      if (ds[u].val >= tau && !visited[u]) {
+        vector<i64> comp;
+        i64 qh = 0;
+        comp.emplace_back(u);
+        visited[u] = true;
+        while (qh < (i64)comp.size()) {
+          i64 u = comp[qh];
+          qh++;
+          for (auto& n : neighbors[u]) {
+            i64 v = n.first.first;
+            // NOTE: important
+            if (!visited[v] && ds[v].val >= tau &&
+                ds[u].st[n.second.first].second >= k) {
+              comp.emplace_back(v);
+              visited[v] = true;
+            }
           }
         }
-        cout << "ans=" << ans << "," << ds[u].val << endl;
-      }
-      //      cout << u << " " << ds[u].val << endl;
-    }
-  }
-  void k_core() {
-    vector<vector<i64>> nn(V);
-    vector<i64> deg(V), cnt(V), pos(V);
-    for (i64 u = 0; u < V; u++) {
-      for (auto& n : neighbors[u]) {
-        nn[u].emplace_back(n.first.first);
-      }
-      sort(nn[u].begin(), nn[u].end());
-      nn[u].erase(unique(nn[u].begin(), nn[u].end()), nn[u].end());
-      deg[u] = nn[u].size();
-      cnt[deg[u]]++;
-    }
-    vector<i64> q(V);
-    for (i64 i = 1; i < V; i++) {
-      cnt[i] += cnt[i - 1];
-    }
-    for (i64 u = 0; u < V; u++) {
-      cnt[deg[u]]--;
-      q[cnt[deg[u]]] = u;
-      pos[u] = cnt[deg[u]];
-    }
-    // deg[u] = nn[u].size()
-    // cnt[x] = | { u | deg[u] < x } |
-    // q[pos[u]] = u
-    for (i64 qh = 0; qh < (i64)q.size(); qh++) {
-      i64 u = q[qh];
-      cnt[deg[u]]++;
-      for (i64 v : nn[u]) {
-        if (deg[v] > deg[u]) {
-          i64 a = cnt[deg[v]], b = pos[v];
-          swap(q[a], q[b]);
-          pos[q[a]] = a;
-          pos[q[b]] = b;
-          cnt[deg[v]]++;
-          deg[v]--;
+        cout << comp.size() << endl;
+        for (i64 u : comp) {
+          cout << u << endl;
         }
+        branch_and_bound(comp, ds, visited, selected);
+        comp.clear();
       }
-      if (deg[u] < k) {
-        // NOTE: not a candidate
-      }
-      //            cout << u << " " << deg[u] << endl;
+      //      cout << u << " " << ds_t[u].val << endl;
     }
   }
-  void branch_and_bound() {}
-} G;
+};
 
 int main() {
-  G.read(cin);
-  G.theta_stable_k_degree_with_stability_no_less_than_tau();
-  G.k_core();
-  G.branch_and_bound();
+  graph G(cin);
+  G.solve();
   return 0;
 }
