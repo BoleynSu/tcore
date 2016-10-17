@@ -35,7 +35,7 @@ struct graph {
     cin >> theta >> k >> tau;
     cin >> V >> E;
     neighbors.resize(V);
-    for (i64 i = 0, last_t = numeric_limits<i64>::min(); i < E; ++i) {
+    for (i64 i = 0, last_t = 0; i < E; ++i) {
       i64 u, v, t;
       cin >> u >> v >> t;
       assert(u != v);
@@ -163,49 +163,259 @@ struct graph {
       q.pop();
     }
   }
-  i64 stability(const vector<i64>& comp, vector<ds_t>& ds, vector<bool>& in) {
-    vector<map<i64, set<i64>>> st(V);
-    for (i64 i = 0; i < comp.size(); i++) {
+  pair<i64, i64> stability(const vector<i64>& comp, vector<bool>& in_comp,
+                           i64 selected) {
+    vector<pair<i64, i64>> st;
+    st.push_back(make_pair(0, numeric_limits<i64>::max()));
+    i64 len = numeric_limits<i64>::max(),
+        selected_len = numeric_limits<i64>::max();
+    for (i64 i = 0; i < (i64)comp.size(); i++) {
       i64 u = comp[i];
-      for (auto& n : neighbors[u]) {
-        i64 v = n.first.first;
-        if (in[v]) {
-          i64 it = neighbors[v][n.first.second].second.first;
-          i64 b = ds[v].st[it].first;
-          for (i64 i = 0; i < theta; i++) {
-            st[u][b + i].insert(v);
+      vector<pair<i64, i64>> nst;
+      i64 nlen = 0;
+      auto it = st.begin();
+      for (i64 j = 0; j < (i64)ds[u].st.size(); j++) {
+        if (ds[u].st[j].second >= k) {
+          // [ds[u].st[j].first, ds[u].st[j + 1].first);
+          while (it != st.end() && it->second <= ds[u].st[j].first) {
+            it++;
+          }
+          while (it != st.end() && it->second <= ds[u].st[j + 1].first) {
+            pair<i64, i64> range(max(it->first, ds[u].st[j].first), it->second);
+            if (range.first < range.second) {
+              nst.push_back(range);
+              nlen += range.second - range.first;
+            }
+            it++;
+          }
+          if (it != st.end() && it->first < ds[u].st[j + 1].first) {
+            pair<i64, i64> range(max(it->first, ds[u].st[j].first),
+                                 ds[u].st[j + 1].first);
+            if (range.first < range.second) {
+              nst.push_back(range);
+              nlen += range.second - range.first;
+            }
           }
         }
       }
+      st.swap(nst);
+      len = nlen;
+      if (i < selected) {
+        selected_len = len;
+      }
+      if (len < tau) {
+        break;
+      }
     }
-    i64 cnt = 0;
-    for (i64 t = 1921; t <= 2020; t++) {
-      i64 delta = 1;
-      for (i64 u : comp) {
-        if (st[u][t].size() < k) {
-          delta = 0;
+    return make_pair(len, selected_len);
+  }
+  bool remove_node(vector<bool>& in_comp, i64 u, queue<i64>& q,
+                   vector<bool>& is_selected) {
+    bool removable = true;
+    for (auto& n : neighbors[u]) {
+      i64 v = n.first.first;
+      if (in_comp[v]) {
+        i64 it = neighbors[v][n.first.second].second.first;
+        while (ds[v].st[it].first < n.second.second) {
+          ds[v].st[it].second--;
+          if (ds[v].st[it].second + 1 >= k && ds[v].st[it].second < k) {
+            i64 delta = ds[v].st[it + 1].first - ds[v].st[it].first;
+            ds[v].val -= delta;
+            if (ds[v].val + delta >= tau && ds[v].val < tau) {
+              q.emplace(v);
+              if (is_selected[v]) {
+                removable = false;
+              }
+            }
+          }
+          it++;
         }
       }
-      cnt += delta;
     }
-    return cnt;
+    return removable;
   }
-  void branch_and_bound(const vector<i64>& comp, vector<ds_t>& ds,
-                        vector<bool>& in, vector<bool>& selected) {
+  void add_node(vector<bool>& in_comp, i64 u) {
+    for (auto& n : neighbors[u]) {
+      i64 v = n.first.first;
+      if (in_comp[v]) {
+        i64 it = neighbors[v][n.first.second].second.first;
+        while (ds[v].st[it].first < n.second.second) {
+          ds[v].st[it].second++;
+          if (ds[v].st[it].second >= k && ds[v].st[it].second - 1 < k) {
+            i64 delta = ds[v].st[it + 1].first - ds[v].st[it].first;
+            ds[v].val += delta;
+          }
+          it++;
+        }
+      }
+    }
+  }
+  void branch_and_bound(const vector<i64>& comp, vector<bool>& in_comp,
+                        i64 selected, vector<bool>& is_selected) {
+    cout << "comp=" << comp.size() << endl;
     if (ans.back().size() > comp.size()) {
       return;
     }
-    if (stability(comp, ds, in) >= tau) {
+    auto len = stability(comp, in_comp, selected);
+    if (len.first >= tau) {
       ans.emplace_back(comp);
-    } else {
-      vector<i64> comp1, comp2;
+    } else if (len.second >= tau && selected < (i64)comp.size()) {
+      vector<i64> compd, comps;
+      i64 u = comp[selected];
+      // select u
+      {
+        is_selected[u] = true;
+        selected++;
+
+        bool selectable = true;
+        vector<pair<i64, i64>> st;
+        st.push_back(make_pair(0, numeric_limits<i64>::max()));
+        i64 len = numeric_limits<i64>::max();
+        for (i64 i = 0; i < selected; i++) {
+          i64 u = comp[i];
+          vector<pair<i64, i64>> nst;
+          i64 nlen = 0;
+          auto it = st.begin();
+          for (i64 j = 0; j < (i64)ds[u].st.size(); j++) {
+            if (ds[u].st[j].second >= k) {
+              // [ds[u].st[j].first, ds[u].st[j + 1].first);
+              while (it != st.end() && it->second <= ds[u].st[j].first) {
+                it++;
+              }
+              while (it != st.end() && it->second <= ds[u].st[j + 1].first) {
+                pair<i64, i64> range(max(it->first, ds[u].st[j].first),
+                                     it->second);
+                if (range.first < range.second) {
+                  nst.push_back(range);
+                  nlen += range.second - range.first;
+                }
+                it++;
+              }
+              if (it != st.end() && it->first < ds[u].st[j + 1].first) {
+                pair<i64, i64> range(max(it->first, ds[u].st[j].first),
+                                     ds[u].st[j + 1].first);
+                if (range.first < range.second) {
+                  nst.push_back(range);
+                  nlen += range.second - range.first;
+                }
+              }
+            }
+          }
+          st.swap(nst);
+          len = nlen;
+          if (len < tau) {
+            selectable = false;
+            break;
+          }
+        }
+        if (selectable) {
+          bool removable = true;
+          vector<i64> removed;
+          queue<i64> q;
+          for (i64 i = selected; i < (i64)comp.size(); i++) {
+            i64 u = comp[i];
+            vector<pair<i64, i64>> nst;
+            i64 nlen = 0;
+            auto it = st.begin();
+            for (i64 j = 0; j < (i64)ds[u].st.size(); j++) {
+              if (ds[u].st[j].second >= k) {
+                // [ds[u].st[j].first, ds[u].st[j + 1].first);
+                while (it != st.end() && it->second <= ds[u].st[j].first) {
+                  it++;
+                }
+                while (it != st.end() && it->second <= ds[u].st[j + 1].first) {
+                  pair<i64, i64> range(max(it->first, ds[u].st[j].first),
+                                       it->second);
+                  if (range.first < range.second) {
+                    nst.push_back(range);
+                    nlen += range.second - range.first;
+                  }
+                  it++;
+                }
+                if (it != st.end() && it->first < ds[u].st[j + 1].first) {
+                  pair<i64, i64> range(max(it->first, ds[u].st[j].first),
+                                       ds[u].st[j + 1].first);
+                  if (range.first < range.second) {
+                    nst.push_back(range);
+                    nlen += range.second - range.first;
+                  }
+                }
+              }
+            }
+            if (nlen < tau) {
+              q.push(u);
+            }
+          }
+          while (!q.empty()) {
+            i64 u = q.front();
+            removed.push_back(u);
+            if (!remove_node(in_comp, u, q, is_selected)) {
+              removable = false;
+              break;
+            }
+            q.pop();
+          }
+          cout << "remove: " << removable << " " << removed.size() << endl;
+          if (removable) {
+            for (i64 u : removed) {
+              in_comp[u] = false;
+            }
+            for (i64 u : comp) {
+              if (in_comp[u]) {
+                comps.push_back(u);
+              }
+            }
+            branch_and_bound(comps, in_comp, selected, is_selected);
+            for (i64 u : removed) {
+              in_comp[u] = true;
+            }
+          }
+          for (i64 u : removed) {
+            add_node(in_comp, u);
+          }
+        }
+        selected--;
+        is_selected[u] = false;
+      }
+      // remove u
+      {
+        bool removable = true;
+        vector<i64> removed;
+        queue<i64> q;
+        q.push(u);
+        while (!q.empty()) {
+          i64 u = q.front();
+          removed.push_back(u);
+          if (!remove_node(in_comp, u, q, is_selected)) {
+            removable = false;
+            break;
+          }
+          q.pop();
+        }
+        if (removable) {
+          for (i64 u : removed) {
+            in_comp[u] = false;
+          }
+          for (i64 u : comp) {
+            if (in_comp[u]) {
+              compd.push_back(u);
+            }
+          }
+          branch_and_bound(compd, in_comp, selected, is_selected);
+          for (i64 u : removed) {
+            in_comp[u] = true;
+          }
+        }
+        for (i64 u : removed) {
+          add_node(in_comp, u);
+        }
+      }
     }
   }
   void solve() {
     ds.resize(V);
-    ans.emplace_back();
     theta_stable_k_degree_nodes_with_stability_no_less_than_tau();
-    vector<bool> visited(V), selected(V);
+    vector<bool> visited(V), is_selected(V);
     for (i64 u = 0; u < V; u++) {
       if (ds[u].val >= tau && !visited[u]) {
         vector<i64> comp;
@@ -218,21 +428,30 @@ struct graph {
           for (auto& n : neighbors[u]) {
             i64 v = n.first.first;
             // NOTE: important
-            if (!visited[v] && ds[v].val >= tau &&
-                ds[u].st[n.second.first].second >= k) {
+            if (!visited[v] && ds[v].val >= tau /*&&
+                ds[u].st[n.second.first].second >= k &&
+                ds[v].st[neighbors[v][n.first.second].second.first].second >=
+                    k*/) {
               comp.emplace_back(v);
               visited[v] = true;
             }
           }
         }
-        cout << comp.size() << endl;
-        for (i64 u : comp) {
-          cout << u << endl;
-        }
-        branch_and_bound(comp, ds, visited, selected);
+        //        cout << comp.size() << endl;
+        //        for (i64 u : comp) {
+        //          cout << u << endl;
+        //        }
+        ans.emplace_back();
+        branch_and_bound(comp, visited, 0, is_selected);
         comp.clear();
       }
       //      cout << u << " " << ds_t[u].val << endl;
+    }
+    for (auto& comp : ans) {
+      cout << comp.size() << endl;
+      for (i64 u : comp) {
+        cout << u << endl;
+      }
     }
   }
 };
