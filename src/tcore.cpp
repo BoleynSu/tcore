@@ -250,10 +250,10 @@ struct graph {
       }
     }
   }
-  void branch_and_bound(const vector<i64>& comp, vector<bool>& in_comp,
-                        i64 selected, vector<bool>& is_selected) {
+  void branch_and_bound(vector<i64>& comp, vector<bool>& in_comp, i64 selected,
+                        vector<bool>& is_selected, int depth) {
     cout << "comp=" << comp.size() << endl;
-    if (ans.back().size() > comp.size()) {
+    if (ans.back().size() >= comp.size()) {
       return;
     }
     auto len = stability(comp, in_comp, selected);
@@ -262,6 +262,39 @@ struct graph {
     } else if (len.second >= tau && selected < (i64)comp.size()) {
       vector<i64> compd, comps;
       i64 u = comp[selected];
+      // remove u
+      {
+        bool removable = true;
+        vector<i64> removed;
+        queue<i64> q;
+        q.push(u);
+        while (!q.empty()) {
+          i64 u = q.front();
+          removed.push_back(u);
+          if (!remove_node(in_comp, u, q, is_selected)) {
+            removable = false;
+            break;
+          }
+          q.pop();
+        }
+        if (removable) {
+          for (i64 u : removed) {
+            in_comp[u] = false;
+          }
+          for (i64 u : comp) {
+            if (in_comp[u]) {
+              compd.push_back(u);
+            }
+          }
+          branch_and_bound(compd, in_comp, selected, is_selected, depth + 1);
+          for (i64 u : removed) {
+            in_comp[u] = true;
+          }
+        }
+        for (i64 u : removed) {
+          add_node(in_comp, u);
+        }
+      }
       // select u
       {
         is_selected[u] = true;
@@ -355,7 +388,9 @@ struct graph {
             }
             q.pop();
           }
-          cout << "remove: " << removable << " " << removed.size() << endl;
+          cout << "remove: " << removable << " " << comp.size() << " - "
+               << removed.size() << " d=" << depth
+               << " ans=" << ans.back().size() << endl;
           if (removable) {
             for (i64 u : removed) {
               in_comp[u] = false;
@@ -365,7 +400,7 @@ struct graph {
                 comps.push_back(u);
               }
             }
-            branch_and_bound(comps, in_comp, selected, is_selected);
+            branch_and_bound(comps, in_comp, selected, is_selected, depth + 1);
             for (i64 u : removed) {
               in_comp[u] = true;
             }
@@ -376,39 +411,6 @@ struct graph {
         }
         selected--;
         is_selected[u] = false;
-      }
-      // remove u
-      {
-        bool removable = true;
-        vector<i64> removed;
-        queue<i64> q;
-        q.push(u);
-        while (!q.empty()) {
-          i64 u = q.front();
-          removed.push_back(u);
-          if (!remove_node(in_comp, u, q, is_selected)) {
-            removable = false;
-            break;
-          }
-          q.pop();
-        }
-        if (removable) {
-          for (i64 u : removed) {
-            in_comp[u] = false;
-          }
-          for (i64 u : comp) {
-            if (in_comp[u]) {
-              compd.push_back(u);
-            }
-          }
-          branch_and_bound(compd, in_comp, selected, is_selected);
-          for (i64 u : removed) {
-            in_comp[u] = true;
-          }
-        }
-        for (i64 u : removed) {
-          add_node(in_comp, u);
-        }
       }
     }
   }
@@ -437,12 +439,14 @@ struct graph {
             }
           }
         }
-        //        cout << comp.size() << endl;
-        //        for (i64 u : comp) {
-        //          cout << u << endl;
-        //        }
+        cout << "===" << endl;
+        cout << comp.size() << endl;
+        for (i64 u : comp) {
+          cout << u << endl;
+        }
+        cout << "===" << endl;
         ans.emplace_back();
-        branch_and_bound(comp, visited, 0, is_selected);
+        branch_and_bound(comp, visited, 0, is_selected, 0);
         comp.clear();
       }
       //      cout << u << " " << ds_t[u].val << endl;
