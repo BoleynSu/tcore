@@ -1,8 +1,10 @@
 // Copyright 2016 Boleyn Su
 
+#include <sys/time.h>
 #include <sys/types.h>
 #include <algorithm>
 #include <cassert>
+#include <fstream>
 #include <functional>
 #include <iostream>
 #include <iterator>
@@ -31,13 +33,16 @@ struct graph {
   // output data
   vector<ds_t> ds;
   vector<vector<i64>> ans;
-  graph(istream& cin) : theta(), k(), tau(), V(), E(), neighbors(), ans() {
-    cin >> theta >> k >> tau;
-    cin >> V >> E;
+  // testing data
+  timeval start_at, end_at;
+  graph(istream& in, i64 theta, i64 k, i64 tau)
+      : theta(theta), k(k), tau(tau), V(), E(), neighbors(), ans() {
+    gettimeofday(&start_at, 0);
+    in >> V >> E;
     neighbors.resize(V);
     for (i64 i = 0, last_t = 0; i < E; ++i) {
       i64 u, v, t;
-      cin >> u >> v >> t;
+      in >> u >> v >> t;
       assert(u != v);
       assert(last_t <= t);
       i64 bu = neighbors[u].size(), bv = neighbors[v].size();
@@ -45,9 +50,15 @@ struct graph {
       neighbors[v].emplace_back(make_pair(u, bu), make_pair(t, t + theta));
       last_t = t;
     }
+    gettimeofday(&end_at, 0);
+    cout << "reading time: "
+         << (end_at.tv_sec - start_at.tv_sec) * 1000 +
+                (end_at.tv_usec - start_at.tv_usec) / 1000
+         << "ms" << endl;
   }
   // NOTE: O(V+theta E)
   void theta_stable_k_degree_nodes_with_stability_no_less_than_tau() {
+    gettimeofday(&start_at, 0);
     // NOTE: some magic
     vector<i64> last(V);
     vector<vector<bool>> ignore(V);
@@ -136,7 +147,7 @@ struct graph {
       //              cout << ds[u].st[i].first << "," << ds[u].st[i].second <<
       //              endl;
       //            }
-      if (ds[u].val < tau) {
+      if (ds[u].val < tau - theta) {
         q.emplace(u);
         //        cout << "push " << u << endl;
       }
@@ -153,7 +164,7 @@ struct graph {
           if (ds[v].st[it].second + 1 >= k && ds[v].st[it].second < k) {
             i64 delta = ds[v].st[it + 1].first - ds[v].st[it].first;
             ds[v].val -= delta;
-            if (ds[v].val + delta >= tau && ds[v].val < tau) {
+            if (ds[v].val + delta >= tau - theta && ds[v].val < tau - theta) {
               q.emplace(v);
             }
           }
@@ -162,6 +173,11 @@ struct graph {
       }
       q.pop();
     }
+    gettimeofday(&end_at, 0);
+    cout << "preprocessing time: "
+         << (end_at.tv_sec - start_at.tv_sec) * 1000 +
+                (end_at.tv_usec - start_at.tv_usec) / 1000
+         << "ms" << endl;
   }
   pair<i64, i64> stability(const vector<i64>& comp, vector<bool>& in_comp,
                            i64 selected) {
@@ -203,7 +219,7 @@ struct graph {
       if (i < selected) {
         selected_len = len;
       }
-      if (len < tau) {
+      if (len < tau - theta) {
         break;
       }
     }
@@ -221,7 +237,7 @@ struct graph {
           if (ds[v].st[it].second + 1 >= k && ds[v].st[it].second < k) {
             i64 delta = ds[v].st[it + 1].first - ds[v].st[it].first;
             ds[v].val -= delta;
-            if (ds[v].val + delta >= tau && ds[v].val < tau) {
+            if (ds[v].val + delta >= tau - theta && ds[v].val < tau - theta) {
               q.emplace(v);
               if (is_selected[v]) {
                 removable = false;
@@ -252,14 +268,13 @@ struct graph {
   }
   void branch_and_bound(vector<i64>& comp, vector<bool>& in_comp, i64 selected,
                         vector<bool>& is_selected, int depth) {
-    cout << "comp=" << comp.size() << endl;
     if (ans.back().size() >= comp.size()) {
       return;
     }
     auto len = stability(comp, in_comp, selected);
-    if (len.first >= tau) {
+    if (len.first >= tau - theta) {
       ans.emplace_back(comp);
-    } else if (len.second >= tau && selected < (i64)comp.size()) {
+    } else if (len.second >= tau - theta && selected < (i64)comp.size()) {
       vector<i64> compd, comps;
       i64 u = comp[selected];
       // remove u
@@ -336,7 +351,7 @@ struct graph {
           }
           st.swap(nst);
           len = nlen;
-          if (len < tau) {
+          if (len < tau - theta) {
             selectable = false;
             break;
           }
@@ -375,7 +390,7 @@ struct graph {
                 }
               }
             }
-            if (nlen < tau) {
+            if (nlen < tau - theta) {
               q.push(u);
             }
           }
@@ -388,9 +403,6 @@ struct graph {
             }
             q.pop();
           }
-          cout << "remove: " << removable << " " << comp.size() << " - "
-               << removed.size() << " d=" << depth
-               << " ans=" << ans.back().size() << endl;
           if (removable) {
             for (i64 u : removed) {
               in_comp[u] = false;
@@ -418,8 +430,10 @@ struct graph {
     ds.resize(V);
     theta_stable_k_degree_nodes_with_stability_no_less_than_tau();
     vector<bool> visited(V), is_selected(V);
+    ans.emplace_back();
+    gettimeofday(&start_at, 0);
     for (i64 u = 0; u < V; u++) {
-      if (ds[u].val >= tau && !visited[u]) {
+      if (ds[u].val >= tau - theta && !visited[u]) {
         vector<i64> comp;
         i64 qh = 0;
         comp.emplace_back(u);
@@ -430,7 +444,7 @@ struct graph {
           for (auto& n : neighbors[u]) {
             i64 v = n.first.first;
             // NOTE: important
-            if (!visited[v] && ds[v].val >= tau /*&&
+            if (!visited[v] && ds[v].val >= tau - theta /*&&
                 ds[u].st[n.second.first].second >= k &&
                 ds[v].st[neighbors[v][n.first.second].second.first].second >=
                     k*/) {
@@ -439,29 +453,28 @@ struct graph {
             }
           }
         }
-        cout << "===" << endl;
-        cout << comp.size() << endl;
-        for (i64 u : comp) {
-          cout << u << endl;
-        }
-        cout << "===" << endl;
-        ans.emplace_back();
         branch_and_bound(comp, visited, 0, is_selected, 0);
         comp.clear();
       }
-      //      cout << u << " " << ds_t[u].val << endl;
     }
-    for (auto& comp : ans) {
-      cout << comp.size() << endl;
-      for (i64 u : comp) {
-        cout << u << endl;
-      }
+    cout << ans.back().size() << endl;
+    for (i64 u : ans.back()) {
+      cout << u << endl;
     }
+    gettimeofday(&end_at, 0);
+    cout << "searching time: "
+         << (end_at.tv_sec - start_at.tv_sec) * 1000 +
+                (end_at.tv_usec - start_at.tv_usec) / 1000
+         << "ms" << endl;
   }
 };
 
-int main() {
-  graph G(cin);
+int main(int argc, char* argv[]) {
+  ifstream in(argv[1]);
+  i64 theta = atoi(argv[2]);
+  i64 k = atoi(argv[3]);
+  i64 tau = atoi(argv[4]);
+  graph G(in, theta, k, tau);
   G.solve();
   return 0;
 }
