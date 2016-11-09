@@ -33,10 +33,23 @@ struct graph {
   // output data
   vector<ds_t> ds;
   vector<vector<i64>> ans;
+  // helper data
+  vector<bool> visited, is_selected, &in_comp;
   // testing data
   timeval start_at, end_at;
   graph(istream& in, i64 theta, i64 k, i64 tau)
-      : theta(theta), k(k), tau(tau), V(), E(), neighbors(), ans() {
+      : theta(theta),
+        k(k),
+        tau(tau),
+        V(),
+        E(),
+        neighbors(),
+        ans(),
+        visited(),
+        is_selected(),
+        in_comp(visited),
+        start_at(),
+        end_at() {
     gettimeofday(&start_at, 0);
     in >> V >> E;
     neighbors.resize(V);
@@ -179,8 +192,7 @@ struct graph {
                 (end_at.tv_usec - start_at.tv_usec) / 1000
          << "ms" << endl;
   }
-  pair<i64, i64> stability(const vector<i64>& comp, vector<bool>& in_comp,
-                           i64 selected) {
+  pair<i64, i64> stability(const vector<i64>& comp, i64 selected) {
     vector<pair<i64, i64>> st;
     st.push_back(make_pair(0, numeric_limits<i64>::max()));
     i64 len = numeric_limits<i64>::max(),
@@ -225,8 +237,7 @@ struct graph {
     }
     return make_pair(len, selected_len);
   }
-  bool remove_node(vector<bool>& in_comp, i64 u, queue<i64>& q,
-                   vector<bool>& is_selected) {
+  bool remove_node(i64 u, queue<i64>& q) {
     bool removable = true;
     for (auto& n : neighbors[u]) {
       i64 v = n.first.first;
@@ -250,7 +261,7 @@ struct graph {
     }
     return removable;
   }
-  void add_node(vector<bool>& in_comp, i64 u) {
+  void add_node(i64 u) {
     for (auto& n : neighbors[u]) {
       i64 v = n.first.first;
       if (in_comp[v]) {
@@ -266,12 +277,11 @@ struct graph {
       }
     }
   }
-  void branch_and_bound(vector<i64>& comp, vector<bool>& in_comp, i64 selected,
-                        vector<bool>& is_selected, int depth) {
+  void branch_and_bound(const vector<i64>& comp, i64 selected) {
     if (ans.back().size() >= comp.size()) {
       return;
     }
-    auto len = stability(comp, in_comp, selected);
+    auto len = stability(comp, selected);
     if (len.first >= tau - theta) {
       ans.emplace_back(comp);
     } else if (len.second >= tau - theta && selected < (i64)comp.size()) {
@@ -286,7 +296,7 @@ struct graph {
         while (!q.empty()) {
           i64 u = q.front();
           removed.push_back(u);
-          if (!remove_node(in_comp, u, q, is_selected)) {
+          if (!remove_node(u, q)) {
             removable = false;
             break;
           }
@@ -294,6 +304,7 @@ struct graph {
         }
         if (removable) {
           for (i64 u : removed) {
+            assert(in_comp[u] && !is_selected[u]);
             in_comp[u] = false;
           }
           for (i64 u : comp) {
@@ -301,13 +312,13 @@ struct graph {
               compd.push_back(u);
             }
           }
-          branch_and_bound(compd, in_comp, selected, is_selected, depth + 1);
+          branch_and_bound(compd, selected);
           for (i64 u : removed) {
             in_comp[u] = true;
           }
         }
         for (i64 u : removed) {
-          add_node(in_comp, u);
+          add_node(u);
         }
       }
       // select u
@@ -397,7 +408,7 @@ struct graph {
           while (!q.empty()) {
             i64 u = q.front();
             removed.push_back(u);
-            if (!remove_node(in_comp, u, q, is_selected)) {
+            if (!remove_node(u, q)) {
               removable = false;
               break;
             }
@@ -405,6 +416,7 @@ struct graph {
           }
           if (removable) {
             for (i64 u : removed) {
+              assert(in_comp[u] && !is_selected[u]);
               in_comp[u] = false;
             }
             for (i64 u : comp) {
@@ -412,13 +424,13 @@ struct graph {
                 comps.push_back(u);
               }
             }
-            branch_and_bound(comps, in_comp, selected, is_selected, depth + 1);
+            branch_and_bound(comps, selected);
             for (i64 u : removed) {
               in_comp[u] = true;
             }
           }
           for (i64 u : removed) {
-            add_node(in_comp, u);
+            add_node(u);
           }
         }
         selected--;
@@ -429,7 +441,8 @@ struct graph {
   void solve() {
     ds.resize(V);
     theta_stable_k_degree_nodes_with_stability_no_less_than_tau();
-    vector<bool> visited(V), is_selected(V);
+    visited.resize(V);
+    is_selected.resize(V);
     ans.emplace_back();
     gettimeofday(&start_at, 0);
     for (i64 u = 0; u < V; u++) {
@@ -443,17 +456,13 @@ struct graph {
           qh++;
           for (auto& n : neighbors[u]) {
             i64 v = n.first.first;
-            // NOTE: important
-            if (!visited[v] && ds[v].val >= tau - theta /*&&
-                ds[u].st[n.second.first].second >= k &&
-                ds[v].st[neighbors[v][n.first.second].second.first].second >=
-                    k*/) {
+            if (!visited[v] && ds[v].val >= tau - theta) {
               comp.emplace_back(v);
               visited[v] = true;
             }
           }
         }
-        branch_and_bound(comp, visited, 0, is_selected, 0);
+        branch_and_bound(comp, 0);
         comp.clear();
       }
     }
