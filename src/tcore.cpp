@@ -35,6 +35,7 @@ struct graph {
   vector<vector<i32>> ans;
   // helper data
   vector<bool> visited, is_selected, &in_comp;
+  vector<i32> par;
   // testing data
   timeval start_at, end_at;
   graph(istream& in, i32 theta, i32 k, i32 tau)
@@ -51,6 +52,7 @@ struct graph {
         start_at(),
         end_at() {
     gettimeofday(&start_at, 0);
+    assert(theta <= tau);
     in >> V >> E;
     neighbors.resize(V);
     for (i32 i = 0, last_t = 0; i < E; ++i) {
@@ -194,6 +196,14 @@ struct graph {
                 (end_at.tv_usec - start_at.tv_usec) / 1000
          << "ms" << endl;
   }
+  i32 find(i32 x) {
+    if (par[x] == x) {
+      return x;
+    } else {
+      par[x] = find(par[x]);
+      return par[x];
+    }
+  }
   pair<i32, i32> stability(const vector<i32>& comp, i32 selected) {
     vector<pair<i32, i32>> st;
     st.push_back(make_pair(0, numeric_limits<i32>::max()));
@@ -235,6 +245,36 @@ struct graph {
       }
       if (len < tau - theta) {
         break;
+      }
+      if (i == selected - 1) {
+        if (len >= tau - theta) {
+          for (i32 i = 0; i < (i32)comp.size(); i++) {
+            i32 u = comp[i];
+            par[u] = u;
+          }
+          for (i32 i = 0; i < (i32)comp.size(); i++) {
+            i32 u = comp[i];
+            for (auto& n : neighbors[u]) {
+              i32 v = n.first.first;
+              if (in_comp[v]) {
+                i32 b = ds[u].st[n.second.first].first;
+                i32 e = n.second.second;
+                i32 j = upper_bound(st.begin(), st.end(),
+                                    make_pair(e, numeric_limits<i32>::max())) -
+                        st.begin() - 1;
+                if (j != -1 && b <= st[j].second) {
+                  par[find(u)] = find(v);
+                }
+              }
+            }
+          }
+          for (i32 i = 1; i < selected; i++) {
+            i32 u = comp[i];
+            if (find(comp[0]) != find(u)) {
+              return make_pair(-1, -1);
+            }
+          }
+        }
       }
     }
     return make_pair(len, selected_len);
@@ -280,6 +320,7 @@ struct graph {
     }
   }
   void branch_and_bound(const vector<i32>& comp, i32 selected) {
+    cout << comp.size() << " " << ans.back().size() << endl;
     if (ans.back().size() >= comp.size()) {
       return;
     }
@@ -298,6 +339,7 @@ struct graph {
         while (!q.empty()) {
           i32 u = q.front();
           removed.push_back(u);
+          in_comp[u] = false;
           if (!remove_node(u, q)) {
             removable = false;
             break;
@@ -305,20 +347,15 @@ struct graph {
           q.pop();
         }
         if (removable) {
-          for (i32 u : removed) {
-            in_comp[u] = false;
-          }
           for (i32 u : comp) {
             if (in_comp[u]) {
               compd.push_back(u);
             }
           }
           branch_and_bound(compd, selected);
-          for (i32 u : removed) {
-            in_comp[u] = true;
-          }
         }
         for (i32 u : removed) {
+          in_comp[u] = true;
           add_node(u);
         }
       }
@@ -409,6 +446,7 @@ struct graph {
           while (!q.empty()) {
             i32 u = q.front();
             removed.push_back(u);
+            in_comp[u] = false;
             if (!remove_node(u, q)) {
               removable = false;
               break;
@@ -416,20 +454,15 @@ struct graph {
             q.pop();
           }
           if (removable) {
-            for (i32 u : removed) {
-              in_comp[u] = false;
-            }
             for (i32 u : comp) {
               if (in_comp[u]) {
                 comps.push_back(u);
               }
             }
             branch_and_bound(comps, selected);
-            for (i32 u : removed) {
-              in_comp[u] = true;
-            }
           }
           for (i32 u : removed) {
+            in_comp[u] = true;
             add_node(u);
           }
         }
@@ -443,6 +476,7 @@ struct graph {
     theta_stable_k_degree_nodes_with_stability_no_less_than_tau();
     visited.resize(V);
     is_selected.resize(V);
+    par.resize(V);
     ans.emplace_back();
     gettimeofday(&start_at, 0);
     for (i32 u = 0; u < V; u++) {
