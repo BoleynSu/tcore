@@ -306,7 +306,6 @@ struct graph {
         }
         if (removable) {
           for (i32 u : removed) {
-            assert(in_comp[u] && !is_selected[u]);
             in_comp[u] = false;
           }
           for (i32 u : comp) {
@@ -418,7 +417,6 @@ struct graph {
           }
           if (removable) {
             for (i32 u : removed) {
-              assert(in_comp[u] && !is_selected[u]);
               in_comp[u] = false;
             }
             for (i32 u : comp) {
