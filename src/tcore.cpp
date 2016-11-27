@@ -281,7 +281,6 @@ struct graph {
         }
       }
     }
-    cerr << comp.size() << " len=" << len << endl;
     return make_pair(len, selected_len);
   }
   bool remove_node(i32 u, queue<pair<i32, i32>>& q) {
@@ -321,11 +320,12 @@ struct graph {
     }
   }
   void branch_and_bound(const vector<i32>& comp, i32 selected) {
-    cerr << comp.size() << " " << ans.back().size() << endl;
     if (ans.back().size() >= comp.size()) {
       return;
     }
     auto len = stability(comp, selected);
+    cerr << "comp=" << comp.size() << " len=(" << len.first << ", "
+         << len.second << ") ans=" << ans.back().size() << endl;
     if (len.first >= tau - theta) {
       ans.emplace_back(comp);
     } else if (len.second >= tau - theta && selected < (i32)comp.size()) {
@@ -523,24 +523,37 @@ struct graph {
                 (end_at.tv_usec - start_at.tv_usec) / 1000
          << "ms" << endl;
     cout << ans.back().size() << endl;
-    set<i32> st;
     for (i32 u : ans.back()) {
       cout << u << endl;
-      st.insert(u);
     }
-    for (i32 u : ans) {
-      for (auto& n : neighbors[u]) {
-        i32 v = n.first.first;
-        i32 it = neighbors[v][n.first.second].second.first;
-        while (ds[v].st[it].first < n.second.second) {
-          ds[v].st[it].second++;
-          if (ds[v].st[it].second >= k && ds[v].st[it].second - 1 < k) {
-            i32 delta = ds[v].st[it + 1].first - ds[v].st[it].first;
-            ds[v].val += delta;
+    if (ans.back().size()) {
+      map<i32, map<i32, i32>> cnt;
+      for (i32 u : ans.back()) {
+        cnt[u];
+      }
+      for (i32 u : ans.back()) {
+        for (auto& n : neighbors[u]) {
+          i32 v = n.first.first;
+          if (cnt.count(v)) {
+            i32 it = neighbors[v][n.first.second].second.first;
+            for (i32 i = ds[v].st[it].first; i < n.second.second; i++) {
+              cnt[v][i]++;
+            }
           }
-          it++;
         }
       }
+      i32 tot = 0;
+      for (auto& t : cnt.begin()->second) {
+        i32 delta = 1;
+        for (i32 u : ans.back()) {
+          if (cnt[u][t.first] < k) {
+            delta = 0;
+          }
+        }
+        tot += delta;
+      }
+      cout << tot << endl;
+      assert(tot >= tau - theta);
     }
   }
 };
