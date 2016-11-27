@@ -340,11 +340,12 @@ struct graph {
     if (exit) {
       return;
     }
-
+    // TODO break into connected components
     if (ans.back().size() >= comp.size()) {
       return;
     }
-    auto len = stability(comp, selected);
+    auto len = selected == 0 ? make_pair(-1, numeric_limits<i32>::max())
+                             : stability(comp, selected);
     cerr << "comp=" << comp.size() << " sel=" << selected << " len=("
          << len.first << ", " << len.second << ") ans=" << ans.back().size()
          << endl;
@@ -446,11 +447,8 @@ struct graph {
               q.emplace(v);
             }
           }
-          set<i32> st;
           while (!q.empty()) {
             i32 v = q.front();
-            assert(st.count(v) == 0);
-            st.insert(v);
             removed.emplace_back(v);
             in_comp[v] = false;
             if (!remove_node(v, q)) {
@@ -493,11 +491,8 @@ struct graph {
             q.emplace(v);
           }
         }
-        set<i32> st;
         while (!q.empty()) {
           i32 v = q.front();
-          assert(st.count(v) == 0);
-          st.insert(v);
           removed.emplace_back(v);
           in_comp[v] = false;
           if (!remove_node(v, q)) {
