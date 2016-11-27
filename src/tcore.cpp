@@ -160,7 +160,7 @@ struct graph {
           }
         }
       }
-      //            cout << u << ":" << ds[u].val << endl;
+      //            cerr << u << ":" << ds[u].val << endl;
       //            for (i64 i = 0; i < (i64)ds[u].st.size(); i++) {
       //              cout << ds[u].st[i].first << "," << ds[u].st[i].second <<
       //              endl;
@@ -168,12 +168,12 @@ struct graph {
       if (ds[u].val < tau - theta) {
         inq[u] = true;
         q.emplace(u);
-        //        cout << "push " << u << endl;
+        //        cerr << "push " << u << endl;
       }
     }
     while (!q.empty()) {
       i32 u = q.front();
-      //                  cout << "pop " << u << endl;
+      //                  cerr << "pop " << u << endl;
       for (auto& n : neighbors[u]) {
         i32 v = n.first.first;
         i32 it = neighbors[v][n.first.second].second.first;
@@ -210,7 +210,7 @@ struct graph {
   }
   pair<i32, i32> stability(const vector<i32>& comp, i32 selected) {
     vector<pair<i32, i32>> st;
-    st.push_back(make_pair(0, numeric_limits<i32>::max()));
+    st.emplace_back(make_pair(0, numeric_limits<i32>::max()));
     i32 len = numeric_limits<i32>::max(),
         selected_len = numeric_limits<i32>::max();
     for (i32 i = 0; i < (i32)comp.size(); i++) {
@@ -227,7 +227,7 @@ struct graph {
           while (it != st.end() && it->second <= ds[u].st[j + 1].first) {
             pair<i32, i32> range(max(it->first, ds[u].st[j].first), it->second);
             if (range.first < range.second) {
-              nst.push_back(range);
+              nst.emplace_back(range);
               nlen += range.second - range.first;
             }
             it++;
@@ -236,7 +236,7 @@ struct graph {
             pair<i32, i32> range(max(it->first, ds[u].st[j].first),
                                  ds[u].st[j + 1].first);
             if (range.first < range.second) {
-              nst.push_back(range);
+              nst.emplace_back(range);
               nlen += range.second - range.first;
             }
           }
@@ -281,43 +281,27 @@ struct graph {
         }
       }
     }
-    cout << comp.size() << " len=" << len << endl;
-    for (int u = 0; u < V; u++) {
-      if (u == 12) {
-        //      if (ds[u].val >= tau - theta) {
-        cout << u << ": " << ds[u].val << endl;
-        for (int i = 0; i < ds[u].st.size(); i++) {
-          cout << ds[u].st[i].first << " " << ds[u].st[i].second << ",";
-        }
-        cout << endl << "==" << endl;
-      }
-    }
-    cout << "=====" << endl;
+    cerr << comp.size() << " len=" << len << endl;
     return make_pair(len, selected_len);
   }
-  bool remove_node(i32 u, queue<i32>& q) {
+  bool remove_node(i32 u, queue<pair<i32, i32>>& q) {
     bool removable = true;
     for (auto& n : neighbors[u]) {
       i32 v = n.first.first;
-      if (in_comp[v]) {
-        i32 it = neighbors[v][n.first.second].second.first;
-        while (ds[v].st[it].first < n.second.second) {
-          ds[v].st[it].second--;
-          if (v==12){
-          	cout<<"here"<<ds[v].st[it].first<<" "<<ds[v].st[it].second<<endl;
-          }
-          if (ds[v].st[it].second + 1 >= k && ds[v].st[it].second < k) {
-            i32 delta = ds[v].st[it + 1].first - ds[v].st[it].first;
-            ds[v].val -= delta;
-            if (ds[v].val + delta >= tau - theta && ds[v].val < tau - theta) {
-              q.emplace(v);
-              if (is_selected[v]) {
-                removable = false;
-              }
+      i32 it = neighbors[v][n.first.second].second.first;
+      while (ds[v].st[it].first < n.second.second) {
+        ds[v].st[it].second--;
+        if (ds[v].st[it].second + 1 >= k && ds[v].st[it].second < k) {
+          i32 delta = ds[v].st[it + 1].first - ds[v].st[it].first;
+          ds[v].val -= delta;
+          if (ds[v].val + delta >= tau - theta && ds[v].val < tau - theta) {
+            q.emplace(v, ds[v].val);
+            if (is_selected[v]) {
+              removable = false;
             }
           }
-          it++;
         }
+        it++;
       }
     }
     return removable;
@@ -325,21 +309,19 @@ struct graph {
   void add_node(i32 u) {
     for (auto& n : neighbors[u]) {
       i32 v = n.first.first;
-      if (in_comp[v]) {
-        i32 it = neighbors[v][n.first.second].second.first;
-        while (ds[v].st[it].first < n.second.second) {
-          ds[v].st[it].second++;
-          if (ds[v].st[it].second >= k && ds[v].st[it].second - 1 < k) {
-            i32 delta = ds[v].st[it + 1].first - ds[v].st[it].first;
-            ds[v].val += delta;
-          }
-          it++;
+      i32 it = neighbors[v][n.first.second].second.first;
+      while (ds[v].st[it].first < n.second.second) {
+        ds[v].st[it].second++;
+        if (ds[v].st[it].second >= k && ds[v].st[it].second - 1 < k) {
+          i32 delta = ds[v].st[it + 1].first - ds[v].st[it].first;
+          ds[v].val += delta;
         }
+        it++;
       }
     }
   }
   void branch_and_bound(const vector<i32>& comp, i32 selected) {
-    cout << comp.size() << " " << ans.back().size() << endl;
+    cerr << comp.size() << " " << ans.back().size() << endl;
     if (ans.back().size() >= comp.size()) {
       return;
     }
@@ -353,22 +335,27 @@ struct graph {
       {
         bool removable = true;
         vector<i32> removed;
-        queue<i32> q;
-        q.push(u);
+        queue<pair<i32, i32>> q;
+        vector<pair<i32, i32>> backup;
+        backup.emplace_back(u, ds[u].val);
+        ds[u].val = 0;
+        q.emplace(u, ds[u].val);
         while (!q.empty()) {
-          i32 u = q.front();
-          removed.push_back(u);
-          in_comp[u] = false;
-          if (!remove_node(u, q)) {
-            removable = false;
-            break;
+          i32 u = q.front().first;
+          if (ds[u].val == q.front().second) {
+            removed.emplace_back(u);
+            in_comp[u] = false;
+            if (!remove_node(u, q)) {
+              removable = false;
+              break;
+            }
           }
           q.pop();
         }
         if (removable) {
           for (i32 u : comp) {
             if (in_comp[u]) {
-              compd.push_back(u);
+              compd.emplace_back(u);
             }
           }
           branch_and_bound(compd, selected);
@@ -376,6 +363,9 @@ struct graph {
         for (i32 u : removed) {
           in_comp[u] = true;
           add_node(u);
+        }
+        for (auto b : backup) {
+          ds[b.first].val = b.second;
         }
       }
       // select u
@@ -385,7 +375,7 @@ struct graph {
 
         bool selectable = true;
         vector<pair<i32, i32>> st;
-        st.push_back(make_pair(0, numeric_limits<i32>::max()));
+        st.emplace_back(make_pair(0, numeric_limits<i32>::max()));
         i32 len = numeric_limits<i32>::max();
         for (i32 i = 0; i < selected; i++) {
           i32 u = comp[i];
@@ -402,7 +392,7 @@ struct graph {
                 pair<i32, i32> range(max(it->first, ds[u].st[j].first),
                                      it->second);
                 if (range.first < range.second) {
-                  nst.push_back(range);
+                  nst.emplace_back(range);
                   nlen += range.second - range.first;
                 }
                 it++;
@@ -411,7 +401,7 @@ struct graph {
                 pair<i32, i32> range(max(it->first, ds[u].st[j].first),
                                      ds[u].st[j + 1].first);
                 if (range.first < range.second) {
-                  nst.push_back(range);
+                  nst.emplace_back(range);
                   nlen += range.second - range.first;
                 }
               }
@@ -427,7 +417,8 @@ struct graph {
         if (selectable) {
           bool removable = true;
           vector<i32> removed;
-          queue<i32> q;
+          queue<pair<i32, i32>> q;
+          vector<pair<i32, i32>> backup;
           for (i32 i = selected; i < (i32)comp.size(); i++) {
             i32 u = comp[i];
             vector<pair<i32, i32>> nst;
@@ -443,7 +434,7 @@ struct graph {
                   pair<i32, i32> range(max(it->first, ds[u].st[j].first),
                                        it->second);
                   if (range.first < range.second) {
-                    nst.push_back(range);
+                    nst.emplace_back(range);
                     nlen += range.second - range.first;
                   }
                   it++;
@@ -452,30 +443,34 @@ struct graph {
                   pair<i32, i32> range(max(it->first, ds[u].st[j].first),
                                        ds[u].st[j + 1].first);
                   if (range.first < range.second) {
-                    nst.push_back(range);
+                    nst.emplace_back(range);
                     nlen += range.second - range.first;
                   }
                 }
               }
             }
             if (nlen < tau - theta) {
-              q.push(u);
+              backup.emplace_back(u, ds[u].val);
+              ds[u].val = 0;
+              q.emplace(u, ds[u].val);
             }
           }
           while (!q.empty()) {
-            i32 u = q.front();
-            removed.push_back(u);
-            in_comp[u] = false;
-            if (!remove_node(u, q)) {
-              removable = false;
-              break;
+            i32 u = q.front().first;
+            if (ds[u].val == q.front().second) {
+              removed.emplace_back(u);
+              in_comp[u] = false;
+              if (!remove_node(u, q)) {
+                removable = false;
+                break;
+              }
             }
             q.pop();
           }
           if (removable) {
             for (i32 u : comp) {
               if (in_comp[u]) {
-                comps.push_back(u);
+                comps.emplace_back(u);
               }
             }
             branch_and_bound(comps, selected);
@@ -483,6 +478,9 @@ struct graph {
           for (i32 u : removed) {
             in_comp[u] = true;
             add_node(u);
+          }
+          for (auto b : backup) {
+            ds[b.first].val = b.second;
           }
         }
         selected--;
@@ -519,15 +517,31 @@ struct graph {
         comp.clear();
       }
     }
-    cout << ans.back().size() << endl;
-    for (i32 u : ans.back()) {
-      cout << u << endl;
-    }
     gettimeofday(&end_at, 0);
     cout << "searching time: "
          << (end_at.tv_sec - start_at.tv_sec) * 1000 +
                 (end_at.tv_usec - start_at.tv_usec) / 1000
          << "ms" << endl;
+    cout << ans.back().size() << endl;
+    set<i32> st;
+    for (i32 u : ans.back()) {
+      cout << u << endl;
+      st.insert(u);
+    }
+    for (i32 u : ans) {
+      for (auto& n : neighbors[u]) {
+        i32 v = n.first.first;
+        i32 it = neighbors[v][n.first.second].second.first;
+        while (ds[v].st[it].first < n.second.second) {
+          ds[v].st[it].second++;
+          if (ds[v].st[it].second >= k && ds[v].st[it].second - 1 < k) {
+            i32 delta = ds[v].st[it + 1].first - ds[v].st[it].first;
+            ds[v].val += delta;
+          }
+          it++;
+        }
+      }
+    }
   }
 };
 
