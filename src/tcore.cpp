@@ -360,6 +360,47 @@ struct graph {
       }
       vector<i32> compr, comps;
       i32 u = comp[selected];
+      // remove u
+      if (!exit) {
+        bool removable = true;
+        vector<i32> removed;
+        queue<i32> q;
+        vector<pair<i32, i32>> backup;
+        for (i32 i = 0; i < (i32)comp.size(); i++) {
+          i32 v = comp[i];
+          if (v == u || !connected[i]) {
+            backup.emplace_back(v, ds[v].val);
+            ds[v].val = 0;
+            q.emplace(v);
+          }
+        }
+        while (!q.empty()) {
+          i32 v = q.front();
+          removed.emplace_back(v);
+          in_comp[v] = false;
+          if (!remove_node(v, q)) {
+            removable = false;
+            break;
+          }
+          q.pop();
+        }
+        if (removable) {
+          for (i32 v : comp) {
+            if (in_comp[v]) {
+              compr.emplace_back(v);
+            }
+          }
+          cerr << "rm=" << removed.size() << endl;
+          branch_and_bound(compr, selected);
+        }
+        for (i32 v : removed) {
+          in_comp[v] = true;
+          add_node(v);
+        }
+        for (auto b : backup) {
+          ds[b.first].val = b.second;
+        }
+      }
       // select u
       if (!exit) {
         is_selected[u] = true;
@@ -376,7 +417,7 @@ struct graph {
           auto it = st.begin();
           for (i32 j = 0; j < (i32)ds[v].st.size(); j++) {
             if (ds[v].st[j].second >= k) {
-              // [ds[u].st[j].first, ds[u].st[j + 1].first);
+              // [ds[v].st[j].first, ds[v].st[j + 1].first);
               while (it != st.end() && it->second <= ds[v].st[j].first) {
                 it++;
               }
@@ -476,47 +517,6 @@ struct graph {
         }
         selected--;
         is_selected[u] = false;
-      }
-      // remove u
-      if (!exit) {
-        bool removable = true;
-        vector<i32> removed;
-        queue<i32> q;
-        vector<pair<i32, i32>> backup;
-        for (i32 i = 0; i < (i32)comp.size(); i++) {
-          i32 v = comp[i];
-          if (v == u || !connected[i]) {
-            backup.emplace_back(v, ds[v].val);
-            ds[v].val = 0;
-            q.emplace(v);
-          }
-        }
-        while (!q.empty()) {
-          i32 v = q.front();
-          removed.emplace_back(v);
-          in_comp[v] = false;
-          if (!remove_node(v, q)) {
-            removable = false;
-            break;
-          }
-          q.pop();
-        }
-        if (removable) {
-          for (i32 v : comp) {
-            if (in_comp[v]) {
-              compr.emplace_back(v);
-            }
-          }
-          cerr << "rm=" << removed.size() << endl;
-          branch_and_bound(compr, selected);
-        }
-        for (i32 v : removed) {
-          in_comp[v] = true;
-          add_node(v);
-        }
-        for (auto b : backup) {
-          ds[b.first].val = b.second;
-        }
       }
     }
   }
