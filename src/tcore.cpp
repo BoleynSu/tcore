@@ -94,6 +94,7 @@ struct graph {
       }
     }
     queue<i32> q;
+    vector<bool> inq(V);
     for (i32 u = 0; u < V; u++) {
       if (neighbors[u].size() == 0) {
         ds[u].val = 0;
@@ -165,6 +166,7 @@ struct graph {
       //              endl;
       //            }
       if (ds[u].val < tau - theta) {
+        inq[u] = true;
         q.emplace(u);
         //        cout << "push " << u << endl;
       }
@@ -181,8 +183,10 @@ struct graph {
           if (ds[v].st[it].second + 1 >= k && ds[v].st[it].second < k) {
             i32 delta = ds[v].st[it + 1].first - ds[v].st[it].first;
             ds[v].val -= delta;
-            if (ds[v].val + delta >= tau - theta && ds[v].val < tau - theta) {
+            if (ds[v].val + delta >= tau - theta && ds[v].val < tau - theta &&
+                !inq[v]) {
               q.emplace(v);
+              inq[v] = true;
             }
           }
           it++;
@@ -277,6 +281,18 @@ struct graph {
         }
       }
     }
+    cout << comp.size() << " len=" << len << endl;
+    for (int u = 0; u < V; u++) {
+      if (u == 12) {
+        //      if (ds[u].val >= tau - theta) {
+        cout << u << ": " << ds[u].val << endl;
+        for (int i = 0; i < ds[u].st.size(); i++) {
+          cout << ds[u].st[i].first << " " << ds[u].st[i].second << ",";
+        }
+        cout << endl << "==" << endl;
+      }
+    }
+    cout << "=====" << endl;
     return make_pair(len, selected_len);
   }
   bool remove_node(i32 u, queue<i32>& q) {
@@ -287,6 +303,9 @@ struct graph {
         i32 it = neighbors[v][n.first.second].second.first;
         while (ds[v].st[it].first < n.second.second) {
           ds[v].st[it].second--;
+          if (v==12){
+          	cout<<"here"<<ds[v].st[it].first<<" "<<ds[v].st[it].second<<endl;
+          }
           if (ds[v].st[it].second + 1 >= k && ds[v].st[it].second < k) {
             i32 delta = ds[v].st[it + 1].first - ds[v].st[it].first;
             ds[v].val -= delta;
