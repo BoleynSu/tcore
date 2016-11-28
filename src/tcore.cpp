@@ -3,6 +3,8 @@
 #include <sys/time.h>
 #include <sys/types.h>
 #include <algorithm>
+#include <boost/iostreams/filter/gzip.hpp>
+#include <boost/iostreams/filtering_streambuf.hpp>
 #include <cassert>
 #include <fstream>
 #include <functional>
@@ -14,6 +16,9 @@
 #include <set>
 #include <utility>
 #include <vector>
+
+using namespace std;
+using namespace boost::iostreams;
 
 using namespace std;
 
@@ -390,7 +395,6 @@ struct graph {
               compr.emplace_back(v);
             }
           }
-          cerr << "rm=" << removed.size() << endl;
           branch_and_bound(compr, selected);
         }
         for (i32 v : removed) {
@@ -504,7 +508,6 @@ struct graph {
                 comps.emplace_back(v);
               }
             }
-            cerr << "rm=" << removed.size() << endl;
             branch_and_bound(comps, selected);
           }
           for (i32 v : removed) {
@@ -591,7 +594,11 @@ struct graph {
 };
 
 int main(int argc, char* argv[]) {
-  ifstream in(argv[1]);
+  ifstream file(argv[1], ios_base::in | ios_base::binary);
+  filtering_streambuf<input> buf;
+  buf.push(gzip_decompressor());
+  buf.push(file);
+  std::istream in(&buf);
   i32 theta = atoi(argv[2]);
   i32 k = atoi(argv[3]);
   i32 tau = atoi(argv[4]);
