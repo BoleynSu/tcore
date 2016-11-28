@@ -416,7 +416,7 @@ struct graph {
           auto it = st.begin();
           for (i32 j = 0; j < (i32)ds[v].st.size(); j++) {
             if (ds[v].st[j].second >= k) {
-              // [ds[v].st[j].first, ds[v].st[j + 1].first);
+              // [ds[v].st[j].first, ds[v].st[j + 1].first)
               while (it != st.end() && it->second <= ds[v].st[j].first) {
                 it++;
               }
