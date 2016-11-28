@@ -251,23 +251,36 @@ struct graph {
         break;
       }
       if (i == selected - 1) {
+          // NOTE: important
         if (len >= tau - theta) {
           for (i32 i = 0; i < (i32)comp.size(); i++) {
             i32 u = comp[i];
             par[u] = u;
           }
-          for (i32 i = 0; i < (i32)comp.size(); i++) {
-            i32 u = comp[i];
+          for (i32 u : comp) {
             for (auto& n : neighbors[u]) {
               i32 v = n.first.first;
               if (in_comp[v]) {
                 i32 b = ds[u].st[n.second.first].first;
                 i32 e = n.second.second;
-                i32 j = upper_bound(st.begin(), st.end(),
-                                    make_pair(e, numeric_limits<i32>::max())) -
-                        st.begin() - 1;
-                if (j != -1 && b <= st[j].second) {
-                  par[find(u)] = find(v);
+                // NOTE: important
+                bool is_active = false;
+                i32 it = n.second.first;
+                while (ds[u].st[it].first < n.second.second) {
+                  if (ds[u].st[it].second >= k) {
+                    is_active = true;
+                    break;
+                  }
+                  it++;
+                }
+                if (is_active) {
+                  i32 j =
+                      upper_bound(st.begin(), st.end(),
+                                  make_pair(e, numeric_limits<i32>::max())) -
+                      st.begin() - 1;
+                  if (j != -1 && b <= st[j].second) {
+                    par[find(u)] = find(v);
+                  }
                 }
               }
             }
@@ -344,6 +357,7 @@ struct graph {
     if (ans.back().size() >= comp.size()) {
       return;
     }
+    // NOTE: important
     auto len = selected == 0 ? make_pair(-1, numeric_limits<i32>::max())
                              : stability(comp, selected);
     cerr << "comp=" << comp.size() << " sel=" << selected << " len=("
@@ -352,6 +366,7 @@ struct graph {
     if (len.first >= tau - theta) {
       ans.emplace_back(comp);
     } else if (len.second >= tau - theta && selected < (i32)comp.size()) {
+      // NOTE: important
       vector<bool> connected(comp.size(), true);
       if (selected) {
         for (i32 i = 0; i < (i32)comp.size(); i++) {
@@ -362,6 +377,7 @@ struct graph {
       i32 u = comp[selected];
       // remove u
       if (!exit) {
+        // NOTE: important
         bool removable = true;
         vector<i32> removed;
         queue<i32> q;
@@ -404,7 +420,7 @@ struct graph {
       if (!exit) {
         is_selected[u] = true;
         selected++;
-
+        // NOTE: important
         bool selectable = true;
         vector<pair<i32, i32>> st;
         st.emplace_back(make_pair(0, numeric_limits<i32>::max()));
@@ -447,6 +463,7 @@ struct graph {
           }
         }
         if (selectable) {
+          // NOTE: important
           bool removable = true;
           vector<i32> removed;
           queue<i32> q;
