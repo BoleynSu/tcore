@@ -390,7 +390,6 @@ struct graph {
               compr.emplace_back(v);
             }
           }
-          cerr << "rm=" << removed.size() << endl;
           branch_and_bound(compr, selected);
         }
         for (i32 v : removed) {
@@ -504,7 +503,6 @@ struct graph {
                 comps.emplace_back(v);
               }
             }
-            cerr << "rm=" << removed.size() << endl;
             branch_and_bound(comps, selected);
           }
           for (i32 v : removed) {
