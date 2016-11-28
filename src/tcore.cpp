@@ -17,9 +17,7 @@
 #include <utility>
 #include <vector>
 
-using namespace std;
 using namespace boost::iostreams;
-
 using namespace std;
 
 typedef int32_t i32;
@@ -598,7 +596,7 @@ int main(int argc, char* argv[]) {
   filtering_streambuf<input> buf;
   buf.push(gzip_decompressor());
   buf.push(file);
-  std::istream in(&buf);
+  istream in(&buf);
   i32 theta = atoi(argv[2]);
   i32 k = atoi(argv[3]);
   i32 tau = atoi(argv[4]);
