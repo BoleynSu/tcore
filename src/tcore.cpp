@@ -251,7 +251,7 @@ struct graph {
         break;
       }
       if (i == selected - 1) {
-          // NOTE: important
+        // NOTE: important
         if (len >= tau - theta) {
           for (i32 i = 0; i < (i32)comp.size(); i++) {
             i32 u = comp[i];
@@ -560,6 +560,7 @@ struct graph {
             }
           }
         }
+        random_shuffle(comp.begin(), comp.end());
         branch_and_bound(comp, 0);
         comp.clear();
       }
