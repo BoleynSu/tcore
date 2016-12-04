@@ -361,9 +361,10 @@ struct graph {
     // NOTE: important
     auto len = selected == 0 ? make_pair(-1, numeric_limits<i32>::max())
                              : stability(comp, selected);
-    cerr << "comp=" << comp.size() << " sel=" << selected << " len=("
-         << len.first << ", " << len.second << ") ans=" << ans.back().size()
-         << endl;
+    //    cerr << "comp=" << comp.size() << " sel=" << selected << " len=("
+    //         << len.first << ", " << len.second << ") ans=" <<
+    //         ans.back().size()
+    //         << endl;
     if (len.first >= tau - theta) {
       ans.emplace_back(comp);
     } else if (len.second >= tau - theta && selected < (i32)comp.size()) {
