@@ -18,6 +18,7 @@
 using namespace std;
 
 typedef int32_t i32;
+typedef int64_t i64;
 
 struct graph {
   struct ds_t {
@@ -199,6 +200,11 @@ struct graph {
          << (end_at.tv_sec - start_at.tv_sec) * 1000 +
                 (end_at.tv_usec - start_at.tv_usec) / 1000
          << "ms" << endl;
+    i64 idxsz = 0;
+    for (auto& d : ds) {
+      idxsz += 4 + 4 * 2 * d.st.size();
+    }
+    cout << "index size: " << idxsz << "byte" << endl;
   }
   i32 find(i32 x) {
     if (par[x] == x) {
@@ -340,15 +346,10 @@ struct graph {
     }
   }
   void branch_and_bound(const vector<i32>& comp, i32 selected) {
-    static i32 counter;
     static bool exit;
-    counter++;
-    if (counter == 10000) {
-      gettimeofday(&end_at, 0);
-      if (end_at.tv_sec - start_at.tv_sec > 1 * 60) {
-        exit = true;
-      }
-      counter = 0;
+    gettimeofday(&end_at, 0);
+    if (end_at.tv_sec - start_at.tv_sec > 1000) {
+      exit = true;
     }
     if (exit) {
       return;
@@ -600,8 +601,8 @@ struct graph {
         }
         tot += delta;
       }
-      cout << tot << endl;
       assert(tot >= tau - theta);
+      cout << tot + theta << endl;
     }
   }
 };
