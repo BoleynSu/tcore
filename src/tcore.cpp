@@ -205,6 +205,30 @@ struct graph {
       idxsz += 4 + 4 * 2 * d.st.size();
     }
     cout << "index size: " << idxsz << "byte" << endl;
+    vector<bool> visited(V);
+    i32 cnt = 0, mx = 0;
+    for (i32 u = 0; u < V; u++) {
+      if (ds[u].val >= tau - theta && !visited[u]) {
+        vector<i32> comp;
+        i32 qh = 0;
+        comp.emplace_back(u);
+        visited[u] = true;
+        while (qh < (i32)comp.size()) {
+          i32 u = comp[qh];
+          qh++;
+          for (auto& n : neighbors[u]) {
+            i32 v = n.first.first;
+            if (!visited[v] && ds[v].val >= tau - theta) {
+              comp.emplace_back(v);
+              visited[v] = true;
+            }
+          }
+        }
+        cnt++;
+        mx = max((i32)comp.size(), mx);
+      }
+    }
+    cout << cnt << " " << mx << endl;
   }
   i32 find(i32 x) {
     if (par[x] == x) {
@@ -564,7 +588,6 @@ struct graph {
         }
         random_shuffle(comp.begin(), comp.end());
         branch_and_bound(comp, 0);
-        comp.clear();
       }
     }
     gettimeofday(&end_at, 0);
